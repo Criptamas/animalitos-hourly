@@ -1,32 +1,86 @@
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+import dayjs from 'dayjs';
+import 'dayjs/locale/es.js';
+import chromium from 'chrome-aws-lambda';
+import puppeteer from 'puppeteer-core';
 
-export async function handler(_, res) {
-  console.log('✨ [api] handler invocado');        // 1️⃣
+dayjs.locale('es');
+
+function parseHour(horaStr) {
+  const [time, period] = horaStr.split(' ');
+  let [h] = time.split(':').map(Number);
+  if (period === 'PM' && h !== 12) h += 12;
+  if (period === 'AM' && h === 12) h = 0;
+  return h;
+}
+
+async function scrapFor(page, dateObj) {
+  const dateStr = dayjs(dateObj).format('D [de] MMMM [de] YYYY');
+  await page.goto('https://guacharoactivo.com.ve/resultados', {
+    waitUntil: 'networkidle2',
+    timeout: 15000
+  });
+  await page.click('button[aria-haspopup="dialog"]');
+  await page.waitForSelector('div[role="dialog"] button', { timeout: 10000 });
+  await page.$$eval(
+    'div[role="dialog"] button',
+    (btns, ds) => {
+      const match = btns.find(b => b.textContent.trim() === ds);
+      if (match) match.click();
+    },
+    dateStr
+  );
+  await page.waitForSelector('section .grid > div', { timeout: 10000 });
+
+  return page.$$eval('section .grid > div', divs =>
+    divs.map(el => {
+      const img    = el.querySelector('img')?.src    || '';
+      const hora   = el.querySelector('p.text-yellow-500')?.textContent.trim() || '';
+      const spans  = el.querySelectorAll('span');
+      const numero = spans[0]?.textContent.trim()    || '';
+      const animal = spans[1]?.textContent.trim()    || '';
+      return { img, hora, numero, animal };
+    })
+  );
+}
+
+export default async function handler(req, res) {
+  let browser;
   try {
-    const { data } = await axios.get(
-      'https://guacharoactivo.com.ve/resultados',
-      { 
-        timeout: 8000,                            // 2️⃣ evita hang eterno
-        headers: { 'User-Agent': 'Mozilla/5.0' }  // 3️⃣ máscara de navegador
-      }
-    );
-    console.log('📥 HTML length:', data.length);  // 4️⃣ confirmamos llegada
-
-    const $ = cheerio.load(data);
-    const resultados = [];
-    $('section.min-h-[100vh] .grid > div').each((i, el) => {
-      const img    = $(el).find('img').attr('src');
-      const hora   = $(el).find('p.text-yellow-500').text().trim();
-      const numero = $(el).find('span').first().text().trim();
-      const animal = $(el).find('span').last().text().trim();
-      resultados.push({ img, hora, numero, animal });
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath,
+      headless: chromium.headless,
     });
-    console.log('🔍 items scrapeados:', resultados.length); // 5️⃣
+    const page = await browser.newPage();
 
-    return res.status(200).json({ htmlLength: data.length });
+    // 1) Scrape hoy
+    let raw = await scrapFor(page, new Date());
+    let filtrados = raw
+      .filter(i => {
+        const h = parseHour(i.hora);
+        return h >= 8 && h <= 19;
+      })
+      .slice(0, 12);
+
+    // 2) Si está fuera de rango u no hay datos, prueba ayer
+    const nowHour = new Date().getHours();
+    if (nowHour < 8 || nowHour > 19 || filtrados.length === 0) {
+      const ayer = dayjs().subtract(1, 'day').toDate();
+      const rawY = await scrapFor(page, ayer);
+      filtrados = rawY
+        .filter(i => {
+          const h = parseHour(i.hora);
+          return h >= 8 && h <= 19;
+        })
+        .slice(0, 12);
+    }
+
+    return res.status(200).json(filtrados);
   } catch (err) {
-    console.error('❌ error scraping:', err.message);
+    console.error('❌ Error scraping:', err);
     return res.status(500).json({ error: err.message });
+  } finally {
+    if (browser) await browser.close();
   }
 }

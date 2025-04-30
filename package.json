@@ -1,8 +1,12 @@
 {
-  "name": "backendProject",
+  "name": "mi-backend",
   "version": "1.0.0",
-  "description": "",
+  "type": "module",
+  "description": "Backen de mi proyecto principal",
   "main": "index.js",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -10,9 +14,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "chrome-aws-lambda": "^10.1.0",
+    "puppeteer-core": "^20.7.2",
     "cors": "^2.8.5",
-    "dayjs": "^1.11.13",
-    "express": "^5.1.0",
-    "puppeteer": "^24.7.2"
+    "dayjs": "^1.11.13"
   }
 }
