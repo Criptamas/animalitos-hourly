@@ -1,11 +1,9 @@
-// api/animalitos-hourly.js
 import dayjs from 'dayjs';
 import 'dayjs/locale/es.js';
 import puppeteer from 'puppeteer';
 
 dayjs.locale('es');
 
-// Convierte "10:30 PM" → 22
 function parseHour(horaStr) {
   const [time, period] = horaStr.split(' ');
   let [h] = time.split(':').map(Number);
@@ -14,7 +12,6 @@ function parseHour(horaStr) {
   return h;
 }
 
-// Raspa los datos para una fecha dada
 async function scrapFor(page, dateObj) {
   const dateStr = dayjs(dateObj).format('D [de] MMMM [de] YYYY');
   await page.goto('https://guacharoactivo.com.ve/resultados', {
@@ -22,9 +19,9 @@ async function scrapFor(page, dateObj) {
     timeout: 15000
   });
   await page.click('button[aria-haspopup="dialog"]');
-  await page.waitForSelector('div[role=\"dialog\"] button', { timeout: 10000 });
+  await page.waitForSelector('div[role="dialog"] button', { timeout: 10000 });
   await page.$$eval(
-    'div[role=\"dialog\"] button',
+    'div[role="dialog"] button',
     (btns, ds) => {
       const match = btns.find(b => b.textContent.trim() === ds);
       if (match) match.click();
@@ -48,7 +45,6 @@ async function scrapFor(page, dateObj) {
 export default async function handler(req, res) {
   let browser;
   try {
-    // Abre Puppeteer con su Chromium interno
     browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -56,20 +52,20 @@ export default async function handler(req, res) {
     const page = await browser.newPage();
 
     // 1) Raspa HOY
-    let raw = await scrapFor(page, new Date());
-    let filtrados = raw
+    let datos = await scrapFor(page, new Date());
+    let filtrados = datos
       .filter(i => {
         const h = parseHour(i.hora);
         return h >= 8 && h <= 19;
       })
       .slice(0, 12);
 
-    // 2) Si no hay datos o fuera de hora, prueba AYER
-    const nowHour = new Date().getHours();
-    if (nowHour < 8 || nowHour > 19 || filtrados.length === 0) {
+    // 2) Si está fuera de ventana o no hay datos, prueba AYER
+    const horaActual = new Date().getHours();
+    if (horaActual < 8 || horaActual > 19 || filtrados.length === 0) {
       const ayer = dayjs().subtract(1, 'day').toDate();
-      const rawY = await scrapFor(page, ayer);
-      filtrados = rawY
+      datos = await scrapFor(page, ayer);
+      filtrados = datos
         .filter(i => {
           const h = parseHour(i.hora);
           return h >= 8 && h <= 19;
@@ -77,10 +73,10 @@ export default async function handler(req, res) {
         .slice(0, 12);
     }
 
-    return res.status(200).json(filtrados);
-  } catch (err) {
-    console.error('❌ Error al scrapear:', err);
-    return res.status(500).json({ error: err.message });
+    res.status(200).json(filtrados);
+  } catch (e) {
+    console.error('❌ Error scraping:', e);
+    res.status(500).json({ error: e.message });
   } finally {
     if (browser) await browser.close();
   }
