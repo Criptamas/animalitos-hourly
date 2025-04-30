@@ -2,10 +2,10 @@
 import dayjs from 'dayjs';
 import 'dayjs/locale/es.js';
 import chromium from 'chrome-aws-lambda';
-import puppeteer from 'puppeteer';
 
 dayjs.locale('es');
 
+// Parsea "10:30 PM" → 22
 function parseHour(horaStr) {
   const [time, period] = horaStr.split(' ');
   let [h] = time.split(':').map(Number);
@@ -14,11 +14,12 @@ function parseHour(horaStr) {
   return h;
 }
 
+// Scrapea un día concreto
 async function scrapFor(page, dateObj) {
   const dateStr = dayjs(dateObj).format('D [de] MMMM [de] YYYY');
   await page.goto('https://guacharoactivo.com.ve/resultados', {
     waitUntil: 'networkidle2',
-    timeout: 15000
+    timeout: 15000,
   });
   await page.click('button[aria-haspopup="dialog"]');
   await page.waitForSelector('div[role="dialog"] button', { timeout: 10000 });
@@ -45,24 +46,28 @@ async function scrapFor(page, dateObj) {
 }
 
 export default async function handler(req, res) {
+  const isVercel = !!process.env.VERCEL; // Vercel setea esta var
+  // Import dinámico según entorno
+  const { default: puppeteer } = isVercel
+    ? await import('puppeteer-core')
+    : await import('puppeteer');
+
+  // Opciones de lanzamiento
+  const launchOpts = isVercel
+    ? {
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath,
+        headless: chromium.headless,
+      }
+    : { headless: true, args: ['--no-sandbox','--disable-setuid-sandbox'] };
+
   let browser;
   try {
-    // Decide si estás en prod (Vercel) o dev local
-    const isProd = process.env.NODE_ENV === 'production';
-
-    const launchOpts = isProd
-      ? {
-          args: chromium.args,
-          defaultViewport: chromium.defaultViewport,
-          executablePath: await chromium.executablePath,
-          headless: chromium.headless,
-        }
-      : { headless: true };
-
     browser = await puppeteer.launch(launchOpts);
     const page = await browser.newPage();
 
-    // 1) Scrapea hoy
+    // 1) Hoy
     let raw = await scrapFor(page, new Date());
     let filtrados = raw
       .filter(i => {
