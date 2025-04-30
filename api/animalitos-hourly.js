@@ -1,7 +1,8 @@
+// api/animalitos-hourly.js
 import dayjs from 'dayjs';
 import 'dayjs/locale/es.js';
-import chromium from '@sparticuz/chromium';   // 👈 binario empaquetado
-import puppeteer from 'puppeteer-core';      // 👈 sin Chrome incluido
+import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer-core';
 
 dayjs.locale('es');
 
@@ -17,10 +18,10 @@ async function scrapFor(page, dateObj) {
   const dateStr = dayjs(dateObj).format('D [de] MMMM [de] YYYY');
   await page.goto('https://guacharoactivo.com.ve/resultados', {
     waitUntil: 'networkidle2',
-    timeout: 15_000
+    timeout: 15000
   });
   await page.click('button[aria-haspopup="dialog"]');
-  await page.waitForSelector('div[role="dialog"] button', { timeout: 10_000 });
+  await page.waitForSelector('div[role="dialog"] button', { timeout: 10000 });
   await page.$$eval(
     'div[role="dialog"] button',
     (btns, ds) => {
@@ -29,7 +30,7 @@ async function scrapFor(page, dateObj) {
     },
     dateStr
   );
-  await page.waitForSelector('section .grid > div', { timeout: 10_000 });
+  await page.waitForSelector('section .grid > div', { timeout: 10000 });
 
   return page.$$eval('section .grid > div', divs =>
     divs.map(el => {
@@ -49,13 +50,12 @@ export default async function handler(req, res) {
     browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(), // ¡IMPORTANTE: ()!
+      executablePath: await chromium.executablePath(), // <- los ()
       headless: chromium.headless,
     });
-
     const page = await browser.newPage();
 
-    // scrape HOY
+    // Scrapea HOY
     let datos = await scrapFor(page, new Date());
     let filtrados = datos
       .filter(i => {
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
       })
       .slice(0, 12);
 
-    // si fuera de hora o vacío → AYER
+    // Si está fuera de hora o vacío, scrappea AYER
     const horaActual = new Date().getHours();
     if (horaActual < 8 || horaActual > 19 || filtrados.length === 0) {
       const ayer = dayjs().subtract(1, 'day').toDate();
@@ -77,10 +77,10 @@ export default async function handler(req, res) {
         .slice(0, 12);
     }
 
-    res.status(200).json(filtrados);
+    return res.status(200).json(filtrados);
   } catch (e) {
-    console.error('❌ Scraping error:', e);
-    res.status(500).json({ error: e.message });
+    console.error('❌ Error scraping:', e);
+    return res.status(500).json({ error: e.message });
   } finally {
     if (browser) await browser.close();
   }
