@@ -1,7 +1,8 @@
+// api/animalitos-hourly.js
 import dayjs from 'dayjs';
 import 'dayjs/locale/es.js';
 import chromium from 'chrome-aws-lambda';
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer';
 
 dayjs.locale('es');
 
@@ -46,15 +47,22 @@ async function scrapFor(page, dateObj) {
 export default async function handler(req, res) {
   let browser;
   try {
-    browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath,
-      headless: chromium.headless,
-    });
+    // Decide si estás en prod (Vercel) o dev local
+    const isProd = process.env.NODE_ENV === 'production';
+
+    const launchOpts = isProd
+      ? {
+          args: chromium.args,
+          defaultViewport: chromium.defaultViewport,
+          executablePath: await chromium.executablePath,
+          headless: chromium.headless,
+        }
+      : { headless: true };
+
+    browser = await puppeteer.launch(launchOpts);
     const page = await browser.newPage();
 
-    // 1) Scrape hoy
+    // 1) Scrapea hoy
     let raw = await scrapFor(page, new Date());
     let filtrados = raw
       .filter(i => {
@@ -63,7 +71,7 @@ export default async function handler(req, res) {
       })
       .slice(0, 12);
 
-    // 2) Si está fuera de rango u no hay datos, prueba ayer
+    // 2) Si no hay o fuera de hora, prueba ayer
     const nowHour = new Date().getHours();
     if (nowHour < 8 || nowHour > 19 || filtrados.length === 0) {
       const ayer = dayjs().subtract(1, 'day').toDate();
