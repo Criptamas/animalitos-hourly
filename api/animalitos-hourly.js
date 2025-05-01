@@ -1,23 +1,24 @@
 import dayjs from 'dayjs';
 import 'dayjs/locale/es.js';
-import chromium from 'chrome-aws-lambda';
-import puppeteer from 'puppeteer-core';
+import { chromium as lambdaChromium } from 'playwright-aws-lambda';    // binario listo
+import playwright from 'playwright-core';                               // API
 
 dayjs.locale('es');
 
 const parseHour = s => {
-  const [[h0, m], period] = s.split(/[: ]/g);
-  let h = +h0;
+  const [time, period] = s.split(' ');
+  let [h] = time.split(':').map(Number);
   if (period === 'PM' && h !== 12) h += 12;
   if (period === 'AM' && h === 12) h = 0;
   return h;
 };
 
-const scrapFor = async (page, dateObj) => {
+const scrapeFor = async (page, dateObj) => {
   const fecha = dayjs(dateObj).format('D [de] MMMM [de] YYYY');
 
   await page.goto('https://guacharoactivo.com.ve/resultados', {
-    waitUntil: 'networkidle2', timeout: 15_000
+    waitUntil: 'networkidle',
+    timeout: 15_000,
   });
 
   await page.click('button[aria-haspopup="dialog"]');
@@ -25,7 +26,8 @@ const scrapFor = async (page, dateObj) => {
 
   await page.$$eval(
     'div[role="dialog"] button',
-    (btns, target) => btns.find(b => b.textContent.trim() === target)?.click(),
+    (btns, target) =>
+      btns.find(b => b.textContent.trim() === target)?.click(),
     fecha
   );
 
@@ -33,9 +35,10 @@ const scrapFor = async (page, dateObj) => {
 
   return page.$$eval('section .grid > div', divs =>
     divs.map(el => {
-      const img    = el.querySelector('img')?.src    ?? '';
+      const img    = el.querySelector('img')?.src ?? '';
       const hora   = el.querySelector('p.text-yellow-500')?.textContent.trim() ?? '';
-      const [numero, animal] = [...el.querySelectorAll('span')].map(n => n.textContent.trim());
+      const spans  = [...el.querySelectorAll('span')].map(s => s.textContent.trim());
+      const [numero, animal] = spans;
       return { img, hora, numero, animal };
     })
   );
@@ -44,37 +47,36 @@ const scrapFor = async (page, dateObj) => {
 export default async function handler(req, res) {
   let browser;
   try {
-    browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath,
-      headless: chromium.headless,
+    browser = await playwright.chromium.launch({
+      args: lambdaChromium.args,
+      executablePath: await lambdaChromium.executablePath(), // ← binario real
+      headless: true,
     });
 
     const page = await browser.newPage();
 
-    // --- scrape hoy ---
-    let data = await scrapFor(page, new Date());
+    // HOY
+    let data = await scrapeFor(page, new Date());
     let filtrados = data.filter(d => {
       const h = parseHour(d.hora);
       return h >= 8 && h <= 19;
     }).slice(0, 12);
 
-    // --- si fuera de rango o vacío -> ayer ---
-    const nowH = new Date().getHours();
-    if (nowH < 8 || nowH > 19 || filtrados.length === 0) {
+    // AYER si procede
+    const hNow = new Date().getHours();
+    if (hNow < 8 || hNow > 19 || filtrados.length === 0) {
       const ayer = dayjs().subtract(1, 'day').toDate();
-      data = await scrapFor(page, ayer);
+      data = await scrapeFor(page, ayer);
       filtrados = data.filter(d => {
         const h = parseHour(d.hora);
         return h >= 8 && h <= 19;
       }).slice(0, 12);
     }
 
-    return res.status(200).json(filtrados);
+    res.status(200).json(filtrados);
   } catch (err) {
-    console.error('❌ Scrape fail:', err);
-    return res.status(500).json({ error: err.message });
+    console.error('🚨 Playwright fail:', err);
+    res.status(500).json({ error: err.message });
   } finally {
     if (browser) await browser.close();
   }
