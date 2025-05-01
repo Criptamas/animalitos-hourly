@@ -2,7 +2,9 @@
   "name": "mi-backend",
   "version": "1.0.0",
   "type": "module",
-  "engines": { "node": "18.x" },
+  "engines": {
+    "node": "18.x"
+  },
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -12,7 +14,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "chrome-aws-lambda": "10.1.0",
     "dayjs": "^1.11.13",
     "playwright-aws-lambda": "0.11.0",
     "playwright-core": "^1.52.0"

@@ -48,11 +48,11 @@ export default async function handler(req, res) {
   let browser;
   try {
     browser = await playwright.chromium.launch({
-      args: lambdaChromium.args,
-      executablePath: await lambdaChromium.executablePath(), // ← binario real
+      args: [...chromeLambda.args, '--no-sandbox'],
+      executablePath: await lambdaChromium.executablePath(),
       headless: true,
     });
-
+    console.log(await chromeLambda.executablePath())
     const page = await browser.newPage();
 
     // HOY
