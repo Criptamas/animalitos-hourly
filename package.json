@@ -15,7 +15,7 @@
   "license": "ISC",
   "dependencies": {
     "dayjs": "^1.11.13",
-    "playwright-aws-lambda": "0.11.0",
-    "playwright-core": "^1.52.0"
+    "playwright-aws-lambda": "1.40.1",
+    "playwright-core": "1.40.1"
   }
 }
