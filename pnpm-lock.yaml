@@ -13,10 +13,10 @@ importers:
         version: 1.11.13
       playwright-aws-lambda:
         specifier: 0.11.0
-        version: 0.11.0(playwright-core@1.52.0)
+        version: 0.11.0(playwright-core@1.40.1)
       playwright-core:
-        specifier: ^1.52.0
-        version: 1.52.0
+        specifier: 1.40.1
+        version: 1.40.1
 
 packages:
 
@@ -36,9 +36,9 @@ packages:
     peerDependencies:
       playwright-core: ^1
 
-  playwright-core@1.52.0:
-    resolution: {integrity: sha512-l2osTgLXSMeuLZOML9qYODUQoPPnUsKsb5/P6LJ2e6uPKXUdPK5WYhN4z03G+YNbWmGDY4YENauNu4ZKczreHg==}
-    engines: {node: '>=18'}
+  playwright-core@1.40.1:
+    resolution: {integrity: sha512-+hkOycxPiV534c4HhpfX6yrlawqVUzITRKwHAmYfmsVreltEl6fAZJ3DPfLMOODw0H3s1Itd6MDCWmP1fl/QvQ==}
+    engines: {node: '>=16'}
     hasBin: true
 
 snapshots:
@@ -47,9 +47,9 @@ snapshots:
 
   lambdafs@2.1.1: {}
 
-  playwright-aws-lambda@0.11.0(playwright-core@1.52.0):
+  playwright-aws-lambda@0.11.0(playwright-core@1.40.1):
     dependencies:
       lambdafs: 2.1.1
-      playwright-core: 1.52.0
+      playwright-core: 1.40.1
 
-  playwright-core@1.52.0: {}
+  playwright-core@1.40.1: {}
